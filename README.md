@@ -61,13 +61,15 @@ cadwright shell
 - **Primitives:** `cube`, `sphere`, `cylinder` (incl. cones via `r1/r2`/`d1/d2`), `polyhedron`
 - **Transforms:** `translate`, `rotate`, `scale`, `mirror`, `color` (passthrough)
 - **Booleans:** `union`, `difference`, `intersection`
+- **Hull:** `hull()` — 3D convex hull of its children (rounded/organic parts)
+- **2D + extrude:** `square`, `circle`, `polygon` profiles + `linear_extrude(height, center, twist, slices)`
 - **Language:** variables, `$fn`, arithmetic, vectors, comparisons, `module`s with
   defaults, `for` (ranges `[a:b]`/`[a:step:b]` and lists), `if/else`, builtins
   (`sin/cos/tan/sqrt/abs/min/max/floor/ceil/pow/round`, `PI`; trig in degrees)
 - **Exports:** **3MF** (mm, slicer-ready) and binary **STL**
 
-**Documented growth edges** (raise a clear error today): `hull`, `minkowski`,
-`linear_extrude`, `rotate_extrude`, `import`, `offset`, `projection`, `text`.
+**Documented growth edges** (raise a clear error today): `minkowski`,
+`rotate_extrude`, `import`, `offset`, `projection`, `text`.
 
 ## Real model (optional)
 

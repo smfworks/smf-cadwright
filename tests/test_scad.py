@@ -42,7 +42,7 @@ def test_expressions_and_trig_degrees():
 
 def test_unsupported_feature_errors():
     with pytest.raises(ScadError):
-        render_scad("hull(){ cube(1); translate([10,0,0]) cube(1); }")
+        render_scad("rotate_extrude() translate([10,0,0]) circle(2);")
 
 
 def test_undefined_variable_errors():

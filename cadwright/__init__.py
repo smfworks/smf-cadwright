@@ -5,10 +5,11 @@ one place. No external OpenSCAD install, no GPL — a clean-room engine.
 from .pipeline import CADwright, Project
 from .scad import render_scad, ScadError
 from .mesh import Mesh
-from . import primitives, csg, codegen, preview
+from .hull import convex_hull
+from . import primitives, csg, codegen, preview, shapes2d, hull
 
 __all__ = [
-    "CADwright", "Project", "render_scad", "ScadError", "Mesh",
-    "primitives", "csg", "codegen", "preview",
+    "CADwright", "Project", "render_scad", "ScadError", "Mesh", "convex_hull",
+    "primitives", "csg", "codegen", "preview", "shapes2d", "hull",
 ]
 __version__ = "0.1.0"
