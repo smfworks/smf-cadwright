@@ -418,9 +418,9 @@ _FUNCS = {
     "ln": math.log,
     "exp": math.exp,
 }
-_UNSUPPORTED = {"minkowski", "rotate_extrude", "import",
-                "surface", "offset", "projection", "text"}
-_2D_PRIMITIVES = {"square", "circle", "polygon"}
+_UNSUPPORTED = {"minkowski", "import",
+                "surface", "offset", "projection"}
+_2D_PRIMITIVES = {"square", "circle", "polygon", "text"}
 
 
 class Evaluator:
@@ -591,6 +591,8 @@ class Evaluator:
             return self._hull(call.children, scope)
         if name == "linear_extrude":
             return self._linear_extrude(pos, named, call.children, scope)
+        if name == "rotate_extrude":
+            return self._rotate_extrude(pos, named, call.children, scope)
         if name in _2D_PRIMITIVES:
             raise ScadError(
                 f"2D primitive '{name}' is only valid inside linear_extrude()")
@@ -696,17 +698,35 @@ class Evaluator:
         center = bool(named.get("center", False))
         twist = float(named.get("twist", 0.0))
         slices = named.get("slices")
-        body = [c for c in children if not isinstance(c, (Assign, ModuleDef))]
-        if not body:
-            return Mesh()
-        outline = self._eval_2d(body[0], scope)
-        return extrude(outline, float(height), center=center, twist=twist,
-                       slices=int(slices) if slices else None)
+        outlines = self._collect_2d(children, scope)
+        out = Mesh()
+        for outline in outlines:
+            out.append(extrude(outline, float(height), center=center, twist=twist,
+                               slices=int(slices) if slices else None))
+        return out
+
+    def _rotate_extrude(self, pos, named, children, scope) -> Mesh:
+        from .shapes2d import revolve
+        facets = named.get("$fn", scope.get("$fn"))
+        out = Mesh()
+        for outline in self._collect_2d(children, scope):
+            out.append(revolve(outline, int(facets) if facets else 32))
+        return out
+
+    def _collect_2d(self, children, scope) -> list:
+        outlines = []
+        for c in children:
+            if isinstance(c, (Assign, ModuleDef)):
+                continue
+            outlines.extend(self._eval_2d(c, scope))
+        return outlines
 
     def _eval_2d(self, stmt, scope) -> list:
-        from .shapes2d import square as s2, circle as c2, polygon as p2, transform2d
+        """Return a list of 2D outlines for a (possibly nested) 2D subtree."""
+        from .shapes2d import (square as s2, circle as c2, polygon as p2,
+                               text as t2, transform2d)
         if not isinstance(stmt, ModuleCall):
-            raise ScadError("linear_extrude expects a 2D primitive child")
+            raise ScadError("expected a 2D primitive child")
         pos, named = [], {}
         for aname, expr in stmt.args:
             if aname is None:
@@ -717,26 +737,27 @@ class Evaluator:
         if name == "square":
             size = named.get("size", pos[0] if pos else 1.0)
             center = bool(named.get("center", pos[1] if len(pos) > 1 else False))
-            return s2(size, center)
+            return [s2(size, center)]
         if name == "circle":
             r = named.get("r", pos[0] if pos else None)
             if r is None and "d" in named:
                 r = named["d"] / 2
             fn = named.get("$fn", scope.get("$fn"))
-            return c2(1.0 if r is None else r, int(fn) if fn else 32)
+            return [c2(1.0 if r is None else r, int(fn) if fn else 32)]
         if name == "polygon":
-            return p2(named.get("points", pos[0] if pos else []))
+            return [p2(named.get("points", pos[0] if pos else []))]
+        if name == "text":
+            s = named.get("text", pos[0] if pos else "")
+            size = named.get("size", pos[1] if len(pos) > 1 else 10.0)
+            spacing = named.get("spacing", 1.0)
+            return t2(s, float(size), float(spacing))
         if name in ("translate", "scale", "rotate", "union", "group"):
-            inner_body = [c for c in stmt.children
-                          if not isinstance(c, (Assign, ModuleDef))]
-            if not inner_body:
-                return []
-            inner = self._eval_2d(inner_body[0], scope)
+            inner = self._collect_2d(stmt.children, scope)
             if name in ("union", "group"):
                 return inner
             vec = named.get("v", pos[0] if pos else [0, 0])
-            return transform2d(name, vec, inner)
-        raise ScadError(f"'{name}' is not a supported 2D child of linear_extrude")
+            return [transform2d(name, vec, o) for o in inner]
+        raise ScadError(f"'{name}' is not a supported 2D child")
 
     def _user_module(self, mod: ModuleDef, pos, named, scope) -> Mesh:
         inner = dict(scope)

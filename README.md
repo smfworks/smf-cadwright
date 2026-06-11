@@ -63,13 +63,15 @@ cadwright shell
 - **Booleans:** `union`, `difference`, `intersection`
 - **Hull:** `hull()` — 3D convex hull of its children (rounded/organic parts)
 - **2D + extrude:** `square`, `circle`, `polygon` profiles + `linear_extrude(height, center, twist, slices)`
+- **Lathe:** `rotate_extrude($fn)` — revolve a profile 360° about Z (vases, pulleys, rings)
+- **Text:** `text("LABEL", size)` via a built-in 5×7 vector font — use inside `linear_extrude` for embossed labels
 - **Language:** variables, `$fn`, arithmetic, vectors, comparisons, `module`s with
   defaults, `for` (ranges `[a:b]`/`[a:step:b]` and lists), `if/else`, builtins
   (`sin/cos/tan/sqrt/abs/min/max/floor/ceil/pow/round`, `PI`; trig in degrees)
 - **Exports:** **3MF** (mm, slicer-ready) and binary **STL**
 
 **Documented growth edges** (raise a clear error today): `minkowski`,
-`rotate_extrude`, `import`, `offset`, `projection`, `text`.
+`import`, `offset`, `projection`, `surface`.
 
 ## Real model (optional)
 

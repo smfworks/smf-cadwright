@@ -42,7 +42,7 @@ def test_expressions_and_trig_degrees():
 
 def test_unsupported_feature_errors():
     with pytest.raises(ScadError):
-        render_scad("rotate_extrude() translate([10,0,0]) circle(2);")
+        render_scad("minkowski(){ cube(10); sphere(2); }")
 
 
 def test_undefined_variable_errors():

@@ -90,3 +90,101 @@ def extrude(outline: list[Pt2], height: float, center: bool = False,
     for i in range(1, n - 1):
         tris.append((bt, bt + i, bt + i + 1))
     return Mesh(verts, tris)
+
+
+def revolve(outline: list[Pt2], segments: int = 32) -> Mesh:
+    """Revolve a 2D profile a full 360 deg about the Z axis (lathe).
+
+    Profile points are (radius, z); radius should be >= 0. The result is a
+    closed surface of revolution (vases, pulleys, bottles).
+    """
+    n = len(outline)
+    if n < 3:
+        return Mesh()
+    seg = max(3, int(segments))
+    verts: list[Vec3] = []
+    for s in range(seg):
+        theta = 2 * math.pi * s / seg
+        c, sn = math.cos(theta), math.sin(theta)
+        for x, y in outline:
+            r = max(0.0, x)
+            verts.append((r * c, r * sn, y))
+    tris = []
+    for s in range(seg):
+        s2 = (s + 1) % seg
+        for i in range(n):
+            i2 = (i + 1) % n
+            a, b = s * n + i, s * n + i2
+            d, e = s2 * n + i, s2 * n + i2
+            tris.append((a, b, e))
+            tris.append((a, e, d))
+    return Mesh(verts, tris)
+
+
+# 5x7 vector font for text() — rows top->bottom, '#' = filled cell.
+_FONT: dict[str, list[str]] = {
+    " ": ["     "] * 7,
+    "A": ["  #  ", " # # ", "#   #", "#####", "#   #", "#   #", "#   #"],
+    "B": ["#### ", "#   #", "#   #", "#### ", "#   #", "#   #", "#### "],
+    "C": [" ####", "#    ", "#    ", "#    ", "#    ", "#    ", " ####"],
+    "D": ["#### ", "#   #", "#   #", "#   #", "#   #", "#   #", "#### "],
+    "E": ["#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#####"],
+    "F": ["#####", "#    ", "#    ", "#### ", "#    ", "#    ", "#    "],
+    "G": [" ####", "#    ", "#    ", "#  ##", "#   #", "#   #", " ####"],
+    "H": ["#   #", "#   #", "#   #", "#####", "#   #", "#   #", "#   #"],
+    "I": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "#####"],
+    "J": ["#####", "    #", "    #", "    #", "#   #", "#   #", " ### "],
+    "K": ["#   #", "#  # ", "# #  ", "##   ", "# #  ", "#  # ", "#   #"],
+    "L": ["#    ", "#    ", "#    ", "#    ", "#    ", "#    ", "#####"],
+    "M": ["#   #", "## ##", "# # #", "#   #", "#   #", "#   #", "#   #"],
+    "N": ["#   #", "##  #", "# # #", "#  ##", "#   #", "#   #", "#   #"],
+    "O": [" ### ", "#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
+    "P": ["#### ", "#   #", "#   #", "#### ", "#    ", "#    ", "#    "],
+    "Q": [" ### ", "#   #", "#   #", "#   #", "# # #", "#  # ", " ## #"],
+    "R": ["#### ", "#   #", "#   #", "#### ", "# #  ", "#  # ", "#   #"],
+    "S": [" ####", "#    ", "#    ", " ### ", "    #", "    #", "#### "],
+    "T": ["#####", "  #  ", "  #  ", "  #  ", "  #  ", "  #  ", "  #  "],
+    "U": ["#   #", "#   #", "#   #", "#   #", "#   #", "#   #", " ### "],
+    "V": ["#   #", "#   #", "#   #", "#   #", "#   #", " # # ", "  #  "],
+    "W": ["#   #", "#   #", "#   #", "#   #", "# # #", "## ##", "#   #"],
+    "X": ["#   #", "#   #", " # # ", "  #  ", " # # ", "#   #", "#   #"],
+    "Y": ["#   #", "#   #", " # # ", "  #  ", "  #  ", "  #  ", "  #  "],
+    "Z": ["#####", "    #", "   # ", "  #  ", " #   ", "#    ", "#####"],
+    "0": [" ### ", "#   #", "#  ##", "# # #", "##  #", "#   #", " ### "],
+    "1": ["  #  ", " ##  ", "  #  ", "  #  ", "  #  ", "  #  ", "#####"],
+    "2": [" ### ", "#   #", "    #", "  ## ", " #   ", "#    ", "#####"],
+    "3": ["#####", "    #", "   # ", "  ## ", "    #", "#   #", " ### "],
+    "4": ["   # ", "  ## ", " # # ", "#  # ", "#####", "   # ", "   # "],
+    "5": ["#####", "#    ", "#### ", "    #", "    #", "#   #", " ### "],
+    "6": [" ### ", "#    ", "#    ", "#### ", "#   #", "#   #", " ### "],
+    "7": ["#####", "    #", "   # ", "  #  ", " #   ", " #   ", " #   "],
+    "8": [" ### ", "#   #", "#   #", " ### ", "#   #", "#   #", " ### "],
+    "9": [" ### ", "#   #", "#   #", " ####", "    #", "    #", " ### "],
+    "-": ["     ", "     ", "     ", "#####", "     ", "     ", "     "],
+    ".": ["     ", "     ", "     ", "     ", "     ", " ##  ", " ##  "],
+    "_": ["     ", "     ", "     ", "     ", "     ", "     ", "#####"],
+    ":": ["     ", " ##  ", " ##  ", "     ", " ##  ", " ##  ", "     "],
+}
+
+
+def text(s: str, size: float = 10.0, spacing: float = 1.0) -> list[list[Pt2]]:
+    """Return a list of square outlines forming blocky text (use in extrude).
+
+    Cells are ``size/7`` mm; characters advance 6 cells * ``spacing``. Unknown
+    characters render as a space.
+    """
+    px = float(size) / 7.0
+    rows = 7
+    out: list[list[Pt2]] = []
+    cursor = 0.0
+    for ch in str(s).upper():
+        glyph = _FONT.get(ch, _FONT[" "])
+        for r, line in enumerate(glyph):
+            for c, cell in enumerate(line):
+                if cell == "#":
+                    x0 = cursor + c * px
+                    y0 = (rows - 1 - r) * px
+                    out.append([(x0, y0), (x0 + px, y0),
+                                (x0 + px, y0 + px), (x0, y0 + px)])
+        cursor += 6 * px * float(spacing)
+    return out
