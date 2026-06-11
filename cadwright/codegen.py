@@ -59,7 +59,8 @@ def _labeled(text: str, *labels: str) -> float | None:
 
 
 def _thread_hole(text: str) -> float | None:
-    m = re.search(r"\bm(2|2\.5|3|4|5|6)\b", text, re.IGNORECASE)
+    # Longer alternatives first so "m2.5" isn't shadowed by "m2".
+    m = re.search(r"\bm(2\.5|2|3|4|5|6)\b", text, re.IGNORECASE)
     return _THREAD.get("m" + m.group(1).lower()) if m else None
 
 

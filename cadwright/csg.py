@@ -65,6 +65,8 @@ class Plane:
     def split_polygon(self, polygon: "Polygon",
                       coplanar_front: list, coplanar_back: list,
                       front: list, back: list) -> None:
+        if polygon.plane is None:        # degenerate (collinear) triangle — drop it
+            return
         types = []
         polygon_type = 0
         for v in polygon.vertices:

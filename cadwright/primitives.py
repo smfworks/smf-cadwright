@@ -97,39 +97,71 @@ def cylinder(h=1.0, r=None, r1=None, r2=None, center: bool = False,
 
 def sphere(r=1.0, fn: int | None = None) -> Mesh:
     r = float(r)
-    n = _fn(fn)
-    rings = max(2, n // 2)          # stacks
-    sectors = n                     # slices
+    sectors = _fn(fn)
+    stacks = max(2, sectors // 2)
     verts: list[Vec3] = []
     tris = []
-    for i in range(rings + 1):
-        phi = math.pi * i / rings           # 0..pi (north to south)
+
+    # Latitude rings i = 1..stacks-1 (the poles are single apex vertices).
+    ring_base = {}
+    for i in range(1, stacks):
+        phi = math.pi * i / stacks
         z = r * math.cos(phi)
         rr = r * math.sin(phi)
+        ring_base[i] = len(verts)
         for j in range(sectors):
             theta = 2 * math.pi * j / sectors
             verts.append((rr * math.cos(theta), rr * math.sin(theta), z))
 
-    def idx(i, j):
-        return i * sectors + (j % sectors)
+    top = len(verts); verts.append((0.0, 0.0, r))
+    bot = len(verts); verts.append((0.0, 0.0, -r))
 
-    for i in range(rings):
+    b1 = ring_base[1]
+    for j in range(sectors):                 # top cap
+        jn = (j + 1) % sectors
+        tris.append((top, b1 + j, b1 + jn))
+    bk = ring_base[stacks - 1]
+    for j in range(sectors):                 # bottom cap
+        jn = (j + 1) % sectors
+        tris.append((bot, bk + jn, bk + j))
+    for i in range(1, stacks - 1):           # bands between rings
+        a, b = ring_base[i], ring_base[i + 1]
         for j in range(sectors):
-            a = idx(i, j)
-            b = idx(i + 1, j)
-            c = idx(i + 1, j + 1)
-            d = idx(i, j + 1)
-            if i != 0:
-                tris.append((a, b, c))
-            if i != rings - 1:
-                tris.append((a, c, d))
-    return Mesh(verts, tris)
+            jn = (j + 1) % sectors
+            tris.append((a + j, a + jn, b + jn))
+            tris.append((a + j, b + jn, b + j))
+
+    # Orient every face outward (convex shape centred at origin): if a triangle's
+    # normal points toward the centre, swap its winding.
+    fixed = []
+    for (ia, ib, ic) in tris:
+        va, vb, vc = verts[ia], verts[ib], verts[ic]
+        n = _sphere_normal(va, vb, vc)
+        cx = (va[0] + vb[0] + vc[0]) / 3
+        cy = (va[1] + vb[1] + vc[1]) / 3
+        cz = (va[2] + vb[2] + vc[2]) / 3
+        if n[0] * cx + n[1] * cy + n[2] * cz < 0:
+            fixed.append((ia, ic, ib))
+        else:
+            fixed.append((ia, ib, ic))
+    return Mesh(verts, fixed)
+
+
+def _sphere_normal(a: Vec3, b: Vec3, c: Vec3) -> Vec3:
+    ux, uy, uz = b[0] - a[0], b[1] - a[1], b[2] - a[2]
+    vx, vy, vz = c[0] - a[0], c[1] - a[1], c[2] - a[2]
+    return (uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx)
 
 
 def polyhedron(points: list, faces: list) -> Mesh:
     verts = [(float(p[0]), float(p[1]), float(p[2])) for p in points]
+    n = len(verts)
     tris = []
     for face in faces:
+        for idx in face:
+            if int(idx) < 0 or int(idx) >= n:
+                raise ValueError(
+                    f"polyhedron face index {idx} out of range 0..{n - 1}")
         for i in range(1, len(face) - 1):       # fan-triangulate each face
             tris.append((int(face[0]), int(face[i]), int(face[i + 1])))
     return Mesh(verts, tris)

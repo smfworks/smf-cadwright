@@ -148,7 +148,15 @@ class Mesh:
         return not self.triangles
 
     # -------------------------------------------------------------- exporters
+    def _check(self) -> None:
+        n = len(self.vertices)
+        for t in self.triangles:
+            if t[0] >= n or t[1] >= n or t[2] >= n or min(t) < 0:
+                raise ValueError(
+                    f"mesh triangle {t} references a vertex outside 0..{n - 1}")
+
     def to_stl_bytes(self, name: str = "cadwright") -> bytes:
+        self._check()
         # Binary STL.
         out = bytearray(b"\0" * 80)
         out += struct.pack("<I", len(self.triangles))
@@ -162,6 +170,7 @@ class Mesh:
         return bytes(out)
 
     def to_3mf_model_xml(self) -> str:
+        self._check()
         verts = "".join(
             f'<vertex x="{v[0]:.6g}" y="{v[1]:.6g}" z="{v[2]:.6g}"/>'
             for v in self.vertices
