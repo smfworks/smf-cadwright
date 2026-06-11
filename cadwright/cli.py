@@ -64,8 +64,9 @@ def cmd_render(args) -> int:
 
 def cmd_shell(_args) -> int:
     cad = CADwright()
+    pending_image = None
     print("CADwright shell — describe a part, then refine it.")
-    print("commands: <description> | edit <change> | scad | stats | "
+    print("commands: <description> | image <path> | edit <change> | scad | stats | "
           "export <file.3mf|.stl|.svg> | new | quit\n")
     while True:
         try:
@@ -84,7 +85,11 @@ def cmd_shell(_args) -> int:
                 print(cad.stats() if cad.project.scad else "(nothing yet)")
             elif low == "new":
                 cad = CADwright()
+                pending_image = None
                 print("cleared.")
+            elif low.startswith("image "):
+                pending_image = line[6:].strip().strip('"')
+                print(f"  reference image set for next description: {pending_image}")
             elif low.startswith("edit "):
                 print("  ", cad.edit(line[5:].strip()))
                 print("  stats:", cad.stats())
@@ -98,7 +103,9 @@ def cmd_shell(_args) -> int:
                 else:
                     print("  wrote", cad.export_3mf(path))
             else:
-                cad.generate(line)
+                cad.generate(line, image_path=pending_image)
+                if pending_image:
+                    pending_image = None        # consumed
                 print("  stats:", cad.stats())
         except ScadError as e:
             print(f"  engine error: {e}")

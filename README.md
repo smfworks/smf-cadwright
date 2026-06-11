@@ -40,6 +40,9 @@ cadwright gen "a 50mm wide 30mm deep plate, 4mm thick, with M4 holes" --scad pla
 # render an existing .scad through our engine
 cadwright render plate.scad --out plate.3mf --preview plate.svg
 
+# model from a photo (needs a real vision model — see below)
+cadwright gen "model this part" --image part.jpg --out part.3mf
+
 # interactive: describe -> refine -> export
 cadwright shell
   cadwright> a 24mm diameter knob, 10mm tall
@@ -80,6 +83,26 @@ setx CADWRIGHT_API_KEY   <key>
 
 The codegen emits **parametric** SCAD (named dimension variables), so the
 plain-English edit loop just retunes variables and re-renders.
+
+## Image input (photo → model)
+
+Pass a reference photo and a **vision-capable** model turns it into parametric
+SCAD:
+
+```bash
+cadwright gen "model this knob" --image knob.jpg --out knob.3mf
+# or in the shell:
+cadwright shell
+  cadwright> image knob.jpg
+  cadwright> a knob about 30mm across     # text dims override the photo
+  cadwright> edit make it 18mm tall
+  cadwright> export knob.3mf
+```
+
+The image is sent as a base64 data URL in the OpenAI-compatible multimodal
+format, so any vision model behind `CADWRIGHT_API_BASE` (e.g. `gpt-4o`,
+`gpt-4o-mini`, a vision-capable OpenRouter/Ollama model) works. Offline mock
+mode can't see the image — it falls back to the text prompt and says so.
 
 ## How it fits OpenClaw
 

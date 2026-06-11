@@ -12,7 +12,9 @@ through to vision-capable real providers (ignored by the mock).
 """
 from __future__ import annotations
 
+import base64
 import json
+import mimetypes
 import os
 import re
 import urllib.error
@@ -69,7 +71,12 @@ def generate(prompt: str, image_path: str | None = None,
     mode = mode or os.environ.get("CADWRIGHT_LLM", "auto")
     if mode == "real" or (mode == "auto" and os.environ.get("CADWRIGHT_API_BASE")):
         return _strip_fences(_generate_real(prompt, image_path))
-    return _generate_mock(prompt)
+    scad = _generate_mock(prompt)
+    if image_path:
+        scad = ("// note: offline mock can't analyze the reference image; set "
+                "CADWRIGHT_LLM=real with a vision model to model from the photo.\n"
+                + scad)
+    return scad
 
 
 def edit(scad: str, instruction: str, mode: str | None = None) -> tuple[str, str]:
@@ -237,11 +244,39 @@ def _chat(messages: list[dict]) -> str:
 
 
 def _generate_real(prompt: str, image_path: str | None) -> str:
-    user = prompt
+    return _chat(_build_messages(prompt, image_path))
+
+
+_IMAGE_INSTRUCTION = (
+    "Model the object shown in the reference image as a 3D-printable part. "
+    "Infer real-world dimensions in millimetres and expose every one as a named "
+    "variable. If the user gave dimensions in the text, trust those over the image."
+)
+
+
+def _encode_image(path: str) -> str:
+    if not os.path.exists(path):
+        raise RuntimeError(f"image not found: {path}")
+    mime, _ = mimetypes.guess_type(path)
+    if not mime or not mime.startswith("image/"):
+        mime = "image/png"
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode("ascii")
+    return f"data:{mime};base64,{b64}"
+
+
+def _build_messages(prompt: str, image_path: str | None) -> list[dict]:
+    """OpenAI-compatible messages; multimodal content when an image is given."""
+    system = {"role": "system", "content": _SYSTEM}
     if image_path:
-        user += f"\n\n(reference image provided: {os.path.basename(image_path)})"
-    return _chat([{"role": "system", "content": _SYSTEM},
-                  {"role": "user", "content": user}])
+        text = (prompt.strip() + "\n\n" + _IMAGE_INSTRUCTION).strip()
+        user = {"role": "user", "content": [
+            {"type": "text", "text": text},
+            {"type": "image_url", "image_url": {"url": _encode_image(image_path)}},
+        ]}
+    else:
+        user = {"role": "user", "content": prompt}
+    return [system, user]
 
 
 def _edit_real(scad: str, instruction: str) -> str:
