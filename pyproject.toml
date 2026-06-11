@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cadwright"
+version = "0.1.0"
+description = "AI description/image -> parametric model -> 3MF, via a clean-room OpenSCAD-subset engine"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "SMF Works" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+cadwright = "cadwright.cli:main"
+
+[tool.setuptools]
+packages = ["cadwright"]

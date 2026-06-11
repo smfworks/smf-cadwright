@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+
+# CADwright demo / generated artifacts
+out/
+*.3mf
+*.stl
+!tests/**/*.3mf
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
