@@ -418,8 +418,7 @@ _FUNCS = {
     "ln": math.log,
     "exp": math.exp,
 }
-_UNSUPPORTED = {"minkowski", "import",
-                "surface", "offset", "projection"}
+_UNSUPPORTED = {"minkowski", "import", "surface", "projection"}
 _2D_PRIMITIVES = {"square", "circle", "polygon", "text"}
 
 
@@ -758,9 +757,12 @@ class Evaluator:
 
     @staticmethod
     def _apply_xform(outline, xform):
-        from .shapes2d import transform2d
+        from .shapes2d import transform2d, offset
         for name, vec in reversed(xform):       # innermost transform first
-            outline = transform2d(name, vec, outline)
+            if name == "offset":
+                outline = offset(outline, vec)
+            else:
+                outline = transform2d(name, vec, outline)
         return outline
 
     def _region_solid(self, stmt, scope, xform, solid, cutter) -> Mesh:
@@ -783,6 +785,19 @@ class Evaluator:
             return m
 
         kids = [c for c in stmt.children if not isinstance(c, (Assign, ModuleDef))]
+
+        if name == "offset":
+            val = named.get("r", named.get("delta", pos[0] if pos else 0.0))
+            newx = xform + [("offset", float(val))]
+            m = Mesh()
+            for c in kids:
+                m.append(self._region_solid(c, scope, newx, solid, cutter))
+            return m
+
+        if name in ("difference", "intersection", "union", "group") and \
+                any(op[0] == "offset" for op in xform):
+            raise ScadError("offset() of a 2D boolean is not supported yet; "
+                            "offset each profile instead")
 
         if name in ("translate", "scale", "rotate"):
             vec = named.get("v", pos[0] if pos else [0, 0])

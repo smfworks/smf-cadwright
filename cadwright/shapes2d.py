@@ -34,6 +34,53 @@ def polygon(points) -> list[Pt2]:
     return [(float(p[0]), float(p[1])) for p in points]
 
 
+def _signed_area(outline: list[Pt2]) -> float:
+    s = 0.0
+    n = len(outline)
+    for i in range(n):
+        x1, y1 = outline[i]
+        x2, y2 = outline[(i + 1) % n]
+        s += x1 * y2 - x2 * y1
+    return s / 2.0
+
+
+def _line_intersect(a1, d1, a2, d2):
+    denom = d1[0] * d2[1] - d1[1] * d2[0]
+    if abs(denom) < 1e-12:
+        return None                     # parallel
+    t = ((a2[0] - a1[0]) * d2[1] - (a2[1] - a1[1]) * d2[0]) / denom
+    return (a1[0] + t * d1[0], a1[1] + t * d1[1])
+
+
+def offset(outline: list[Pt2], delta: float) -> list[Pt2]:
+    """Miter offset a simple polygon by ``delta`` (outward positive).
+
+    Each edge is shifted by ``delta`` along its outward normal and consecutive
+    shifted edges are intersected to form the new vertices. Robust for convex
+    and mildly concave outlines; very large inward offsets on concave shapes can
+    self-intersect (a documented limitation).
+    """
+    n = len(outline)
+    if n < 3 or abs(delta) < 1e-9:
+        return list(outline)
+    sgn = 1.0 if _signed_area(outline) > 0 else -1.0   # outward-normal sign
+    edges = []
+    for i in range(n):
+        a = outline[i]
+        b = outline[(i + 1) % n]
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dy) or 1.0
+        nx, ny = sgn * dy / length, -sgn * dx / length
+        edges.append(((a[0] + delta * nx, a[1] + delta * ny), (dx, dy)))
+    out = []
+    for i in range(n):
+        a1, d1 = edges[i - 1]          # edge ending at vertex i
+        a2, d2 = edges[i]              # edge starting at vertex i
+        p = _line_intersect(a1, d1, a2, d2)
+        out.append(p if p is not None else a2)
+    return out
+
+
 def transform2d(name: str, vec, outline: list[Pt2]) -> list[Pt2]:
     if name == "translate":
         vx, vy = (vec[0], vec[1]) if isinstance(vec, list) else (vec, vec)

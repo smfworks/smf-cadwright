@@ -65,6 +65,7 @@ cadwright shell
 - **2D + extrude:** `square`, `circle`, `polygon` profiles + `linear_extrude(height, center, twist, slices)`
 - **Lathe:** `rotate_extrude($fn)` — revolve a profile 360° about Z (vases, pulleys, rings)
 - **2D booleans / holes:** `union`/`difference`/`intersection` of 2D profiles inside an extrude — e.g. a washer is `difference(){ circle(10); circle(4); }` extruded
+- **Offset:** `offset(r=)`/`offset(delta=)` grows/shrinks a profile (shells, clearances) — miter join
 - **Text:** `text("LABEL", size)` via a built-in 5×7 vector font — use inside `linear_extrude` for embossed labels
 - **Language:** variables, `$fn`, arithmetic, vectors, comparisons, `module`s with
   defaults, `for` (ranges `[a:b]`/`[a:step:b]` and lists), `if/else`, builtins
@@ -72,7 +73,7 @@ cadwright shell
 - **Exports:** **3MF** (mm, slicer-ready) and binary **STL**
 
 **Documented growth edges** (raise a clear error today): `minkowski`,
-`import`, `offset`, `projection`, `surface`.
+`import`, `projection`, `surface`.
 
 ## Real model (optional)
 
