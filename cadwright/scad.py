@@ -694,46 +694,49 @@ class Evaluator:
 
     def _linear_extrude(self, pos, named, children, scope) -> Mesh:
         from .shapes2d import extrude
-        height = named.get("height", named.get("h", pos[0] if pos else 1.0))
+        from .mesh import translate_m
+        height = float(named.get("height", named.get("h", pos[0] if pos else 1.0)))
         center = bool(named.get("center", False))
         twist = float(named.get("twist", 0.0))
         slices = named.get("slices")
-        outlines = self._collect_2d(children, scope)
+        sl = int(slices) if slices else None
+        eps = 0.01
+
+        def solid(o):
+            return extrude(o, height, center=center, twist=twist, slices=sl)
+
+        def cutter(o):
+            # slightly over-tall so 2D-difference holes cut cleanly (no
+            # coincident top/bottom faces with the body).
+            if center:
+                return extrude(o, height + 2 * eps, center=True, twist=twist, slices=sl)
+            return extrude(o, height + 2 * eps, center=False, twist=twist,
+                           slices=sl).transformed(translate_m(0, 0, -eps))
+
         out = Mesh()
-        for outline in outlines:
-            out.append(extrude(outline, float(height), center=center, twist=twist,
-                               slices=int(slices) if slices else None))
+        for c in children:
+            if isinstance(c, (Assign, ModuleDef)):
+                continue
+            out.append(self._region_solid(c, scope, [], solid, cutter))
         return out
 
     def _rotate_extrude(self, pos, named, children, scope) -> Mesh:
         from .shapes2d import revolve
         facets = named.get("$fn", scope.get("$fn"))
-        out = Mesh()
-        for outline in self._collect_2d(children, scope):
-            out.append(revolve(outline, int(facets) if facets else 32))
-        return out
+        seg = int(facets) if facets else 32
 
-    def _collect_2d(self, children, scope) -> list:
-        outlines = []
+        def solid(o):
+            return revolve(o, seg)
+
+        out = Mesh()
         for c in children:
             if isinstance(c, (Assign, ModuleDef)):
                 continue
-            outlines.extend(self._eval_2d(c, scope))
-        return outlines
+            out.append(self._region_solid(c, scope, [], solid, solid))
+        return out
 
-    def _eval_2d(self, stmt, scope) -> list:
-        """Return a list of 2D outlines for a (possibly nested) 2D subtree."""
-        from .shapes2d import (square as s2, circle as c2, polygon as p2,
-                               text as t2, transform2d)
-        if not isinstance(stmt, ModuleCall):
-            raise ScadError("expected a 2D primitive child")
-        pos, named = [], {}
-        for aname, expr in stmt.args:
-            if aname is None:
-                pos.append(self.eval_expr(expr, scope))
-            else:
-                named[aname] = self.eval_expr(expr, scope)
-        name = stmt.name
+    def _primitive_outlines(self, name, pos, named, scope) -> list:
+        from .shapes2d import square as s2, circle as c2, polygon as p2, text as t2
         if name == "square":
             size = named.get("size", pos[0] if pos else 1.0)
             center = bool(named.get("center", pos[1] if len(pos) > 1 else False))
@@ -751,12 +754,66 @@ class Evaluator:
             size = named.get("size", pos[1] if len(pos) > 1 else 10.0)
             spacing = named.get("spacing", 1.0)
             return t2(s, float(size), float(spacing))
-        if name in ("translate", "scale", "rotate", "union", "group"):
-            inner = self._collect_2d(stmt.children, scope)
-            if name in ("union", "group"):
-                return inner
+        return []
+
+    @staticmethod
+    def _apply_xform(outline, xform):
+        from .shapes2d import transform2d
+        for name, vec in reversed(xform):       # innermost transform first
+            outline = transform2d(name, vec, outline)
+        return outline
+
+    def _region_solid(self, stmt, scope, xform, solid, cutter) -> Mesh:
+        """Resolve a 2D subtree (primitives, transforms, 2D booleans) into a 3D
+        solid using ``solid``/``cutter`` to turn outlines into meshes."""
+        if not isinstance(stmt, ModuleCall):
+            raise ScadError("expected a 2D primitive in extrude")
+        pos, named = [], {}
+        for aname, expr in stmt.args:
+            if aname is None:
+                pos.append(self.eval_expr(expr, scope))
+            else:
+                named[aname] = self.eval_expr(expr, scope)
+        name = stmt.name
+
+        if name in _2D_PRIMITIVES:
+            m = Mesh()
+            for o in self._primitive_outlines(name, pos, named, scope):
+                m.append(solid(self._apply_xform(o, xform)))
+            return m
+
+        kids = [c for c in stmt.children if not isinstance(c, (Assign, ModuleDef))]
+
+        if name in ("translate", "scale", "rotate"):
             vec = named.get("v", pos[0] if pos else [0, 0])
-            return [transform2d(name, vec, o) for o in inner]
+            newx = xform + [(name, vec)]
+            m = Mesh()
+            for c in kids:
+                m.append(self._region_solid(c, scope, newx, solid, cutter))
+            return m
+        if name in ("union", "group"):
+            m = Mesh()
+            for c in kids:
+                m.append(self._region_solid(c, scope, xform, solid, cutter))
+            return m
+        if name == "difference":
+            if not kids:
+                return Mesh()
+            base = self._region_solid(kids[0], scope, xform, solid, cutter)
+            for c in kids[1:]:
+                hole = self._region_solid(c, scope, xform, cutter, cutter)
+                if not hole.is_empty():
+                    base = csg.difference(base, hole)
+            return base
+        if name == "intersection":
+            meshes = [self._region_solid(c, scope, xform, solid, cutter) for c in kids]
+            meshes = [m for m in meshes if not m.is_empty()]
+            if not meshes:
+                return Mesh()
+            out = meshes[0]
+            for m in meshes[1:]:
+                out = csg.intersection(out, m)
+            return out
         raise ScadError(f"'{name}' is not a supported 2D child")
 
     def _user_module(self, mod: ModuleDef, pos, named, scope) -> Mesh:
