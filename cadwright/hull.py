@@ -89,8 +89,8 @@ def convex_hull(points: list[Vec3]) -> Mesh:
             for e in ((a, b), (b, c), (c, a)):
                 vis_edges[e] = vis_edges.get(e, 0) + 1
         horizon = [(a, b) for (a, b) in vis_edges if (b, a) not in vis_edges]
-        vis_id = {id(f) for f in visible}
-        faces = [f for f in faces if id(f) not in vis_id]
+        vis_set = set(visible)         # remove visible faces by value (not id)
+        faces = [f for f in faces if f not in vis_set]
         for (a, b) in horizon:
             faces.append(_oriented(pts, a, b, pi, interior))
 

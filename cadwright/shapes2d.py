@@ -165,7 +165,18 @@ def revolve(outline: list[Pt2], segments: int = 32) -> Mesh:
             d, e = s2 * n + i, s2 * n + i2
             tris.append((a, b, e))
             tris.append((a, e, d))
-    return Mesh(verts, tris)
+    # Drop zero-area triangles (e.g. strips where the profile touches the axis,
+    # x==0, collapse a quad edge to a point).
+    clean = [(a, b, c) for (a, b, c) in tris
+             if _tri_area2(verts[a], verts[b], verts[c]) > 1e-14]
+    return Mesh(verts, clean)
+
+
+def _tri_area2(a: Vec3, b: Vec3, c: Vec3) -> float:
+    ux, uy, uz = b[0] - a[0], b[1] - a[1], b[2] - a[2]
+    vx, vy, vz = c[0] - a[0], c[1] - a[1], c[2] - a[2]
+    nx, ny, nz = uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx
+    return nx * nx + ny * ny + nz * nz
 
 
 # 5x7 vector font for text() — rows top->bottom, '#' = filled cell.
