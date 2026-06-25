@@ -14,6 +14,7 @@ dependencies = []
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+bambu = ["paho-mqtt>=1.6"]
 
 [project.scripts]
 cadwright = "cadwright.cli:main"
